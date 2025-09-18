@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -18,49 +18,55 @@ async function main() {
 
   const [electronics, books, fashion] = categories;
 
+  function slugify(input: string) {
+    return input
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "");
+  }
+
+  const images = ["/headphone.jpg", "/case.jpg", "/novel.jpeg", "/shirt.jpeg"];
+
+  const products: Prisma.ProductCreateManyInput[] = [];
+  for (let i = 0; i < 20; i++) {
+    const idx = i + 1;
+    const category = i % 3 === 0 ? electronics : i % 3 === 1 ? books : fashion;
+    const categoryName =
+      category.id === electronics.id
+        ? "Electronics"
+        : category.id === books.id
+        ? "Books"
+        : "Fashion";
+
+    const name = `${categoryName} Item ${idx}`;
+    const slug = `${slugify(name)}-${idx}`;
+    const description = `Sample ${categoryName.toLowerCase()} product #${idx} for pagination.`;
+    const price =
+      categoryName === "Books"
+        ? 5 + (idx % 45)
+        : categoryName === "Fashion"
+        ? 10 + (idx % 140)
+        : 15 + (idx % 980);
+    const imageUrl = images[i % images.length];
+    const stock = 20 + ((idx * 7) % 200);
+
+    products.push({
+      name,
+      slug,
+      description,
+      price,
+      imageUrl,
+      categoryId: category.id,
+      stock,
+    });
+  }
+
   await prisma.product.createMany({
-    data: [
-      {
-        name: "Wireless Headphones",
-        slug: "wireless-headphones",
-        description:
-          "Comfortable over-ear wireless headphones with noise cancelling.",
-        price: 99.99,
-        imageUrl: "/headphone.jpg",
-        categoryId: electronics.id,
-        stock: 50,
-      },
-      {
-        name: "Smartphone Case",
-        slug: "smartphone-case",
-        description: "Durable protective case for your smartphone.",
-        price: 19.99,
-        imageUrl: "/case.jpg",
-        categoryId: electronics.id,
-        stock: 200,
-      },
-      {
-        name: "Novel: The Journey",
-        slug: "novel-the-journey",
-        description: "An inspiring adventure story.",
-        price: 12.5,
-        imageUrl: "/novel.jpeg",
-        categoryId: books.id,
-        stock: 100,
-      },
-      {
-        name: "T-Shirt",
-        slug: "t-shirt",
-        description: "Comfortable cotton t-shirt.",
-        price: 15.0,
-        imageUrl: "/shirt.jpeg",
-        categoryId: fashion.id,
-        stock: 150,
-      },
-    ],
+    data: products,
+    skipDuplicates: true,
   });
 
-  console.log("Seed completed");
+  console.log(`Seed completed. Inserted up to ${products.length} products.`);
 }
 
 main()
