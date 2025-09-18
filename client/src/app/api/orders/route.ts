@@ -81,7 +81,6 @@ export async function POST(req: NextRequest) {
         include: { items: { include: { product: true } } },
       });
 
-      // Decrement stock
       await Promise.all(
         items.map((i: { productId: number; quantity: number }) =>
           tx.product.update({

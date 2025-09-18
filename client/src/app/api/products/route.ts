@@ -47,7 +47,6 @@ export async function GET(req: NextRequest) {
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  // Normalize Decimal to number for client convenience
   const items = rawItems.map((p) => ({ ...p, price: Number(p.price) }));
 
   return NextResponse.json({ items, total, page, pageSize, categories });

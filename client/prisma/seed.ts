@@ -25,12 +25,25 @@ async function main() {
       .replace(/(^-|-$)+/g, "");
   }
 
-  const images = ["/headphone.jpg", "/case.jpg", "/novel.jpeg", "/shirt.jpeg"];
+  // Map images to the right category (fallback to global if missing)
+  const globalImages = [
+    "/headphone.jpg",
+    "/case.jpg",
+    "/novel.jpeg",
+    "/shirt.jpeg",
+  ];
+  const categoryImages: Record<"electronics" | "books" | "fashion", string[]> =
+    {
+      electronics: ["/headphone.jpg", "/case.jpg"],
+      books: ["/novel.jpeg"],
+      fashion: ["/shirt.jpeg"],
+    };
 
   const products: Prisma.ProductCreateManyInput[] = [];
   for (let i = 0; i < 20; i++) {
     const idx = i + 1;
     const category = i % 3 === 0 ? electronics : i % 3 === 1 ? books : fashion;
+
     const categoryName =
       category.id === electronics.id
         ? "Electronics"
@@ -41,13 +54,25 @@ async function main() {
     const name = `${categoryName} Item ${idx}`;
     const slug = `${slugify(name)}-${idx}`;
     const description = `Sample ${categoryName.toLowerCase()} product #${idx} for pagination.`;
+
     const price =
       categoryName === "Books"
         ? 5 + (idx % 45)
         : categoryName === "Fashion"
         ? 10 + (idx % 140)
         : 15 + (idx % 980);
-    const imageUrl = images[i % images.length];
+
+    type CategorySlug = keyof typeof categoryImages;
+    const catSlug: CategorySlug =
+      category.id === electronics.id
+        ? "electronics"
+        : category.id === books.id
+        ? "books"
+        : "fashion";
+
+    const imgs = categoryImages[catSlug] ?? globalImages;
+    const imageUrl = imgs[(idx - 1) % imgs.length];
+
     const stock = 20 + ((idx * 7) % 200);
 
     products.push({
