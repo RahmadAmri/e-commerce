@@ -1,14 +1,22 @@
 "use client";
 import Link from "next/link";
-import { useCart, type CartItem } from "@/store/cart";
 import Image from "next/image";
+import { useCart } from "@/store/cart";
+import type { CartItem } from "@/store/cart";
+import { useToast } from "@/components/Toast";
 
 export default function CartPage() {
-  const { items, removeItem, updateQty } = useCart((s) => s);
+  const items = useCart((s) => s.items);
+  const updateQty = useCart((s) => s.updateQty);
+  const removeItemAnimated = useCart((s) => s.removeItemAnimated);
+  const removingIds = useCart((s) => s.removingIds);
+  const { info } = useToast();
+
   const total = items.reduce(
     (sum: number, i: CartItem) => sum + i.price * i.quantity,
     0
   );
+
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold">Cart</h1>
@@ -16,45 +24,61 @@ export default function CartPage() {
         <div>Your cart is empty.</div>
       ) : (
         <>
-          <ul className="space-y-2">
-            {items.map((i: CartItem) => (
-              <li
-                key={i.productId}
-                className="flex items-center gap-3 border p-2 rounded"
-              >
-                <div className="relative w-12 h-12">
-                  <Image
-                    src={i.imageUrl}
-                    alt={i.name}
-                    fill
-                    sizes="48px"
-                    style={{ objectFit: "contain" }}
-                  />
-                </div>
-                <div className="flex-1">
-                  <div className="font-medium">{i.name}</div>
-                  <div className="text-sm text-gray-500">
-                    ${i.price.toFixed(2)}
+          <div className="space-y-3">
+            {items.map((it) => {
+              const isRemoving = removingIds.includes(it.productId);
+              return (
+                <div
+                  key={it.productId}
+                  className={[
+                    "cart-row rounded-lg border border-white/10 bg-white/5 p-3 flex items-center gap-3 transition-all",
+                    isRemoving ? "cart-row--removing" : "",
+                  ].join(" ")}
+                >
+                  <div className="relative h-16 w-16 shrink-0 rounded bg-white/10 overflow-hidden">
+                    <Image
+                      src={it.imageUrl}
+                      alt={it.name}
+                      fill
+                      className="object-contain"
+                    />
+                  </div>
+
+                  <div className="flex-1">
+                    <div className="font-medium">{it.name}</div>
+                    <div className="text-sm text-white/60">
+                      ${it.price.toFixed(2)}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      value={it.quantity}
+                      onChange={(e) =>
+                        updateQty(
+                          it.productId,
+                          Math.max(1, Number(e.target.value))
+                        )
+                      }
+                      className="w-16 rounded border border-white/10 bg-white/5 px-2 py-1 text-right"
+                    />
+                    <button
+                      className="rounded-md border border-white/10 bg-white/10 hover:bg-white/20 px-3 py-1.5 text-sm transition"
+                      onClick={() => {
+                        removeItemAnimated(it.productId);
+                        info("Removed from cart");
+                      }}
+                    >
+                      🗑️ Remove
+                    </button>
                   </div>
                 </div>
-                <input
-                  type="number"
-                  value={i.quantity}
-                  min={1}
-                  className="w-20 border px-2 py-1 rounded"
-                  onChange={(e) =>
-                    updateQty(i.productId, Math.max(1, Number(e.target.value)))
-                  }
-                />
-                <button
-                  className="text-sm border px-2 py-1 rounded"
-                  onClick={() => removeItem(i.productId)}
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
+              );
+            })}
+          </div>
+
           <div className="flex items-center justify-between">
             <div className="text-lg font-semibold">
               Total: ${total.toFixed(2)}

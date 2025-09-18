@@ -10,45 +10,56 @@ export type CartItem = {
 
 export interface CartState {
   items: CartItem[];
+  removingIds: number[];
   addItem: (item: Omit<CartItem, "quantity">, qty?: number) => void;
-  removeItem: (productId: number) => void;
   updateQty: (productId: number, qty: number) => void;
+  removeItem: (productId: number) => void;
+  removeItemAnimated: (productId: number, delay?: number) => void;
   clear: () => void;
 }
 
-export const useCart = create<CartState>()(
-  (
-    set: (
-      partial: Partial<CartState> | ((state: CartState) => Partial<CartState>)
-    ) => void
-  ) => ({
-    items: [],
-    addItem: (item: Omit<CartItem, "quantity">, qty = 1) =>
-      set((state: CartState) => {
-        const existing = state.items.find(
-          (i: CartItem) => i.productId === item.productId
-        );
-        if (existing) {
-          return {
-            items: state.items.map((i: CartItem) =>
-              i.productId === item.productId
-                ? { ...i, quantity: i.quantity + qty }
-                : i
-            ),
-          };
-        }
-        return { items: [...state.items, { ...item, quantity: qty }] };
-      }),
-    removeItem: (productId: number) =>
-      set((s: CartState) => ({
-        items: s.items.filter((i: CartItem) => i.productId !== productId),
-      })),
-    updateQty: (productId: number, qty: number) =>
-      set((s: CartState) => ({
-        items: s.items.map((i: CartItem) =>
-          i.productId === productId ? { ...i, quantity: qty } : i
+export const useCart = create<CartState>((set, get) => ({
+  items: [],
+  removingIds: [],
+
+  addItem: (item, qty = 1) => {
+    const { items } = get();
+    const existing = items.find((i) => i.productId === item.productId);
+    if (existing) {
+      set({
+        items: items.map((i) =>
+          i.productId === item.productId
+            ? { ...i, quantity: i.quantity + qty }
+            : i
         ),
-      })),
-    clear: () => set(() => ({ items: [] })),
-  })
-);
+      });
+    } else {
+      set({ items: [...items, { ...item, quantity: qty }] });
+    }
+  },
+
+  updateQty: (productId, qty) =>
+    set({
+      items: get().items.map((i) =>
+        i.productId === productId ? { ...i, quantity: qty } : i
+      ),
+    }),
+
+  removeItem: (productId) =>
+    set({ items: get().items.filter((i) => i.productId !== productId) }),
+
+  removeItemAnimated: (productId, delay = 260) => {
+    const { removingIds } = get();
+    if (removingIds.includes(productId)) return;
+    set({ removingIds: [...removingIds, productId] });
+    setTimeout(() => {
+      const { items, removingIds } = get();
+      set({
+        items: items.filter((i) => i.productId !== productId),
+        removingIds: removingIds.filter((id) => id !== productId),
+      });
+    }, delay);
+  },
+
+  clear: () => set({ items: [], removingIds: [] }),
+}));

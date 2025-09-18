@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export function middleware(req: NextRequest) {
-  if (req.nextUrl.pathname === "/checkout") {
+  // Protect orders pages only
+  if (req.nextUrl.pathname.startsWith("/orders")) {
     const token = req.cookies.get("session_token")?.value;
     if (!token) {
       const url = req.nextUrl.clone();
       url.pathname = "/login";
-      url.searchParams.set("next", "/checkout");
+      url.searchParams.set("next", req.nextUrl.pathname);
       return NextResponse.redirect(url);
     }
   }
@@ -14,5 +15,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/checkout"],
+  matcher: ["/orders", "/orders/:path*"],
 };

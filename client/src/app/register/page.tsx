@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
 import { useToast } from "@/components/Toast";
+import { emitSessionChange } from "@/lib/session-events";
 
 const RegisterSchema = z.object({
   name: z.string().min(1, "Enter your name").max(60),
@@ -62,18 +63,16 @@ export default function RegisterPage() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parsed.data),
+      body: JSON.stringify(form),
+      cache: "no-store",
     });
-    setLoading(false);
-
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      const msg = j?.error ?? "Registration failed";
-      setErr(typeof msg === "string" ? msg : "Registration failed");
-      toastError(typeof msg === "string" ? msg : "Registration failed");
+      toastError(j?.error ?? "Registration failed");
       return;
     }
     success("Account created!");
+    emitSessionChange(true);
     router.replace(next);
   }
 

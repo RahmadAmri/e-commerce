@@ -39,7 +39,7 @@ export async function getUserBySessionToken(token: string | undefined | null) {
 export async function revokeSession(token: string) {
   try {
     await prisma.session.delete({ where: { token } });
-  } catch {
-    // ignore if already revoked
+  } catch (error) {
+    console.log(error);
   }
 }

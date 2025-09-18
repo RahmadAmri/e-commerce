@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
 import { useToast } from "@/components/Toast";
+import { emitSessionChange } from "@/lib/session-events";
 
 const LoginSchema = z.object({
   email: z.string().email("Enter a valid email"),
@@ -25,7 +26,6 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const emailRef = useRef<HTMLInputElement>(null);
 
-  // If already logged in, skip to next
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -57,18 +57,16 @@ export default function LoginPage() {
     const res = await fetch("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(parsed.data),
+      body: JSON.stringify(form),
+      cache: "no-store",
     });
-    setLoading(false);
-
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
-      const msg = j?.error ?? "Login failed";
-      setErr(msg);
-      toastError(msg);
+      toastError(j?.error ?? "Login failed");
       return;
     }
     success("Welcome back!");
+    emitSessionChange(true);
     router.replace(next);
   }
 

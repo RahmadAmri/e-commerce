@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { z } from "zod";
+import prisma from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { z } from "zod";
 
 const QuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -12,33 +12,39 @@ const QuerySchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const url = new URL(req.url);
-  const parsed = QuerySchema.safeParse(Object.fromEntries(url.searchParams));
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Invalid query", details: parsed.error.format() },
-      { status: 400 }
-    );
-  }
-  const { page, pageSize, category, sort, q } = parsed.data;
+  const q = req.nextUrl.searchParams;
+  const page = Number(q.get("page") ?? 1);
+  const pageSize = Number(q.get("pageSize") ?? 8);
+  const category = q.get("category") ?? undefined;
+  const search = q.get("q") ?? undefined;
+  const sort = q.get("sort") ?? undefined;
+  const minPrice = q.get("minPrice") ? Number(q.get("minPrice")) : undefined;
+  const maxPrice = q.get("maxPrice") ? Number(q.get("maxPrice")) : undefined;
 
-  const where: Prisma.ProductWhereInput = {};
-  if (category) where.category = { slug: category };
-  if (q)
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-    ];
+  const where: Prisma.ProductWhereInput = {
+    ...(category ? { category: { slug: category } } : {}),
+    ...(search ? { name: { contains: search, mode: "insensitive" } } : {}),
+    ...(minPrice != null || maxPrice != null
+      ? {
+          price: {
+            ...(minPrice != null ? { gte: minPrice } : {}),
+            ...(maxPrice != null ? { lte: maxPrice } : {}),
+          },
+        }
+      : {}),
+  };
 
-  let orderBy: Prisma.ProductOrderByWithRelationInput | undefined;
-  if (sort === "price_asc") orderBy = { price: "asc" };
-  else if (sort === "price_desc") orderBy = { price: "desc" };
-  else orderBy = { createdAt: "desc" };
+  const orderBy =
+    sort === "price_asc"
+      ? { price: "asc" }
+      : sort === "price_desc"
+      ? { price: "desc" }
+      : { createdAt: "desc" };
 
   const [rawItems, total, categories] = await Promise.all([
     prisma.product.findMany({
       where,
-      orderBy,
+      orderBy: undefined,
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: { category: true },
@@ -47,7 +53,10 @@ export async function GET(req: NextRequest) {
     prisma.category.findMany({ orderBy: { name: "asc" } }),
   ]);
 
-  const items = rawItems.map((p) => ({ ...p, price: Number(p.price) }));
+  const items = rawItems.map((p) => ({
+    ...p,
+    price: Number(p.price),
+  }));
 
   return NextResponse.json({ items, total, page, pageSize, categories });
 }

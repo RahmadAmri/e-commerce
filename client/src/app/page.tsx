@@ -15,6 +15,11 @@ type Product = {
   category: Category;
 };
 
+function fmtPrice(v: unknown) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+}
+
 type ApiResponse = {
   items: Product[];
   total: number;
@@ -32,6 +37,8 @@ export default function Home() {
   const [sort, setSort] = useState<string | undefined>();
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
+  const [minPrice, setMinPrice] = useState<number | undefined>();
+  const [maxPrice, setMaxPrice] = useState<number | undefined>();
 
   const add = useCart((s) => s.addItem);
   const cartCount = useCart((s) =>
@@ -45,6 +52,10 @@ export default function Home() {
   }, [q]);
 
   useEffect(() => {
+    setPage(1);
+  }, [category, debouncedQ, sort, minPrice, maxPrice]);
+
+  useEffect(() => {
     async function load() {
       setLoading(true);
       const sp = new URLSearchParams();
@@ -53,6 +64,8 @@ export default function Home() {
       if (category) sp.set("category", category);
       if (sort) sp.set("sort", sort);
       if (debouncedQ) sp.set("q", debouncedQ);
+      if (minPrice != null) sp.set("minPrice", String(minPrice));
+      if (maxPrice != null) sp.set("maxPrice", String(maxPrice));
       const res = await fetch(`/api/products?${sp.toString()}`, {
         cache: "no-store",
       });
@@ -61,17 +74,12 @@ export default function Home() {
       setLoading(false);
     }
     load();
-  }, [page, pageSize, category, sort, debouncedQ]);
+  }, [page, pageSize, category, sort, debouncedQ, minPrice, maxPrice]);
 
   const totalPages = useMemo(
     () => (data ? Math.ceil(data.total / data.pageSize) : 1),
     [data]
   );
-
-  // Reset to first page on filters change
-  useEffect(() => {
-    setPage(1);
-  }, [category, debouncedQ, sort]);
 
   return (
     <div className="space-y-6">
@@ -156,6 +164,44 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* Price Range */}
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <div>
+              <label className="block text-xs text-white/60 mb-1">
+                Min Price
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={minPrice ?? ""}
+                onChange={(e) =>
+                  setMinPrice(
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
+                className="w-full border border-white/10 bg-white/5 text-white rounded px-3 py-2 outline-none focus:ring-2 ring-white/20"
+                placeholder="0"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/60 mb-1">
+                Max Price
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={maxPrice ?? ""}
+                onChange={(e) =>
+                  setMaxPrice(
+                    e.target.value ? Number(e.target.value) : undefined
+                  )
+                }
+                className="w-full border border-white/10 bg-white/5 text-white rounded px-3 py-2 outline-none focus:ring-2 ring-white/20"
+                placeholder="999"
+              />
+            </div>
+          </div>
         </div>
       </div>
 
@@ -204,14 +250,14 @@ export default function Home() {
               </p>
 
               <div className="mt-auto flex items-center justify-between">
-                <div className="font-bold">${p.price.toFixed(2)}</div>
+                <div className="font-bold">${fmtPrice(p.price)}</div>
                 <button
                   className="text-sm border border-white/15 px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 active:scale-[0.97] transition-all"
                   onClick={() => {
                     add({
                       productId: p.id,
                       name: p.name,
-                      price: p.price,
+                      price: Number(p.price), // ensure number
                       imageUrl: p.imageUrl,
                     });
                     success(`Added “${p.name}” to cart`);

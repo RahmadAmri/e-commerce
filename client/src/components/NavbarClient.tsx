@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { listenSessionChange, emitSessionChange } from "@/lib/session-events";
 import { useCart } from "@/store/cart";
 
 type User = { id: string; email: string; name?: string | null } | null;
@@ -20,58 +21,50 @@ export default function NavbarClient({ user }: { user: User }) {
   const cartCount = useCart((s) =>
     s.items.reduce((sum: number, it) => sum + (it.quantity ?? 1), 0)
   );
-
-  useEffect(() => {
-    setOpen(false);
-    setMenuOpen(false);
-  }, [pathname]);
-
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        const j = await res.json().catch(() => ({}));
-        if (!alive) return;
-        setLoggedIn(Boolean(j?.user));
-      } catch {
-        if (!alive) return;
-        setLoggedIn(false);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [pathname]);
-
   const menuRef = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    function onDoc(e: MouseEvent) {
-      if (!menuRef.current) return;
-      if (!menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    setLoggedIn(false);
-    router.refresh();
+  async function checkSession() {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const j = await res.json().catch(() => ({}));
+      setLoggedIn(Boolean(j?.user));
+    } catch {
+      setLoggedIn(false);
+    }
   }
 
-  // Simple bag icon for anonymous fallback
-  function BagIcon() {
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 24 24"
-        className="h-4 w-4 text-black"
-        fill="currentColor"
-      >
-        <path d="M7 7V6a5 5 0 0 1 10 0v1h1.5a1.5 1.5 0 0 1 1.49 1.34l1.2 11A1.5 1.5 0 0 1 19.7 21H4.3a1.5 1.5 0 0 1-1.49-1.66l1.2-11A1.5 1.5 0 0 1 5.5 7H7Zm2 0h6V6a3 3 0 1 0-6 0v1Z" />
-      </svg>
-    );
+  useEffect(() => {
+    checkSession();
+  }, [pathname]);
+
+  useEffect(() => {
+    const onFocus = () => checkSession();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, []);
+
+  useEffect(() => {
+    return listenSessionChange((isIn) => {
+      setLoggedIn(isIn);
+      router.refresh();
+    });
+  }, [router]);
+
+  async function logout() {
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "include",
+      });
+    } finally {
+      setLoggedIn(false);
+      emitSessionChange(false);
+
+      if (typeof window !== "undefined") {
+        window.location.replace("/");
+      }
+    }
   }
 
   const initials = (
@@ -106,6 +99,18 @@ export default function NavbarClient({ user }: { user: User }) {
     </Link>
   );
 
+  // Optional: close any open user/menu popover when clicking outside
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-neutral-950/70 backdrop-blur supports-[backdrop-filter]:bg-neutral-950/50">
       <div className="mx-auto max-w-7xl px-4">
@@ -115,11 +120,8 @@ export default function NavbarClient({ user }: { user: User }) {
             href="/"
             className="flex items-center gap-2 font-semibold tracking-tight text-white"
           >
-            <span className="inline-block h-6 w-6 rounded-md bg-gradient-to-br from-white to-white/50 text-black grid place-items-center text-xs shadow-sm">
-              e
-            </span>
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
-              Mini Commerce
+              Mini E-Commerce
             </span>
           </Link>
 
@@ -159,14 +161,13 @@ export default function NavbarClient({ user }: { user: User }) {
                 </Link>
               </>
             ) : (
-              // Simple Logout button (replaces login/register when authenticated)
               <div ref={menuRef} className="relative">
                 <button
                   onClick={logout}
                   className="flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 bg-white text-black hover:opacity-90 transition"
                 >
                   <span className="grid place-items-center h-6 w-6 rounded-full bg-black/10 text-black text-xs font-semibold">
-                    {initials ? initials : <BagIcon />}
+                    {initials}
                   </span>
                   Logout
                 </button>

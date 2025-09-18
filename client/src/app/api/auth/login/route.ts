@@ -18,11 +18,17 @@ export async function POST(req: NextRequest) {
 
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Wrong email or password" },
+      { status: 401 }
+    );
 
   const ok = await verifyPassword(password, user.passwordHash);
   if (!ok)
-    return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+    return NextResponse.json(
+      { error: "Wrong email or password" },
+      { status: 401 }
+    );
 
   const { token, expiresAt } = await createSession(user.id, 7);
   const res = NextResponse.json({
