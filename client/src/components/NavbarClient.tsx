@@ -16,17 +16,34 @@ export default function NavbarClient({ user }: { user: User }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [loggedIn, setLoggedIn] = useState<boolean>(!!user);
   const cartCount = useCart((s) =>
     s.items.reduce((sum: number, it) => sum + (it.quantity ?? 1), 0)
   );
 
-  // Close menus on route change
   useEffect(() => {
     setOpen(false);
     setMenuOpen(false);
   }, [pathname]);
 
-  // Close user menu on outside click
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        const j = await res.json().catch(() => ({}));
+        if (!alive) return;
+        setLoggedIn(Boolean(j?.user));
+      } catch {
+        if (!alive) return;
+        setLoggedIn(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [pathname]);
+
   const menuRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     function onDoc(e: MouseEvent) {
@@ -39,7 +56,22 @@ export default function NavbarClient({ user }: { user: User }) {
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    setLoggedIn(false);
     router.refresh();
+  }
+
+  // Simple bag icon for anonymous fallback
+  function BagIcon() {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className="h-4 w-4 text-black"
+        fill="currentColor"
+      >
+        <path d="M7 7V6a5 5 0 0 1 10 0v1h1.5a1.5 1.5 0 0 1 1.49 1.34l1.2 11A1.5 1.5 0 0 1 19.7 21H4.3a1.5 1.5 0 0 1-1.49-1.66l1.2-11A1.5 1.5 0 0 1 5.5 7H7Zm2 0h6V6a3 3 0 1 0-6 0v1Z" />
+      </svg>
+    );
   }
 
   const initials = (
@@ -50,7 +82,7 @@ export default function NavbarClient({ user }: { user: User }) {
       .join("")
       .slice(0, 2) ||
     user?.email?.slice(0, 2) ||
-    "?"
+    ""
   ).toUpperCase();
 
   const NavLink = ({
@@ -111,57 +143,33 @@ export default function NavbarClient({ user }: { user: User }) {
 
           {/* Desktop user area */}
           <div className="hidden md:flex items-center gap-2">
-            {!user ? (
+            {!loggedIn ? (
               <>
                 <Link
-                  href="/login"
+                  href={`/login?next=${encodeURIComponent(pathname || "/")}`}
                   className="px-3 py-2 rounded-md text-sm text-white/85 hover:bg-white/10 border border-white/10 transition-colors"
                 >
                   Login
                 </Link>
                 <Link
-                  href="/register"
+                  href={`/register?next=${encodeURIComponent(pathname || "/")}`}
                   className="px-3 py-2 rounded-md text-sm bg-white text-black hover:opacity-90 transition"
                 >
                   Register
                 </Link>
               </>
             ) : (
+              // Simple Logout button (replaces login/register when authenticated)
               <div ref={menuRef} className="relative">
                 <button
-                  onClick={() => setMenuOpen((v) => !v)}
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-md border border-white/10 bg-white/5 hover:bg-white/10 transition"
-                  aria-haspopup="menu"
-                  aria-expanded={menuOpen}
+                  onClick={logout}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md border border-white/10 bg-white text-black hover:opacity-90 transition"
                 >
-                  <span className="grid place-items-center h-7 w-7 rounded-full bg-white text-black text-sm font-semibold">
-                    {initials}
+                  <span className="grid place-items-center h-6 w-6 rounded-full bg-black/10 text-black text-xs font-semibold">
+                    {initials ? initials : <BagIcon />}
                   </span>
-                  <span className="hidden lg:block text-sm text-white/85">
-                    {user.name || user.email}
-                  </span>
+                  Logout
                 </button>
-                {menuOpen && (
-                  <div
-                    role="menu"
-                    className="absolute right-0 mt-2 w-48 rounded-md border border-white/10 bg-neutral-950/95 backdrop-blur p-1 shadow-xl animate-fade-in-up"
-                  >
-                    <Link
-                      href="/orders"
-                      className="block w-full text-left px-3 py-2 rounded text-sm hover:bg-white/10"
-                      role="menuitem"
-                    >
-                      My Orders
-                    </Link>
-                    <button
-                      onClick={logout}
-                      className="block w-full text-left px-3 py-2 rounded text-sm hover:bg-white/10 text-red-300/90"
-                      role="menuitem"
-                    >
-                      Logout
-                    </button>
-                  </div>
-                )}
               </div>
             )}
           </div>
@@ -197,16 +205,18 @@ export default function NavbarClient({ user }: { user: User }) {
             <div className="grid gap-2">
               <NavLink href="/">Home</NavLink>
               <NavLink href="/orders">Orders</NavLink>
-              {!user ? (
+              {!loggedIn ? (
                 <div className="grid grid-cols-2 gap-2">
                   <Link
-                    href="/login"
+                    href={`/login?next=${encodeURIComponent(pathname || "/")}`}
                     className="text-center px-3 py-2 rounded-md text-sm text-white/85 hover:bg-white/10 border border-white/10 transition-colors"
                   >
                     Login
                   </Link>
                   <Link
-                    href="/register"
+                    href={`/register?next=${encodeURIComponent(
+                      pathname || "/"
+                    )}`}
                     className="text-center px-3 py-2 rounded-md text-sm bg-white text-black hover:opacity-90 transition"
                   >
                     Register

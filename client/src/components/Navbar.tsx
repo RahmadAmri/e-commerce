@@ -2,9 +2,13 @@ import { cookies } from "next/headers";
 import { getUserBySessionToken } from "@/lib/auth";
 import NavbarClient from "./NavbarClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function Navbar() {
-  const token = cookies().get("session_token")?.value ?? "";
+  const cookieStore = await cookies();
+  const token = cookieStore.get("session_token")?.value ?? "";
   const user = await getUserBySessionToken(token);
+
   const safeUser = user
     ? { id: user.id, email: user.email, name: user.name ?? undefined }
     : null;
