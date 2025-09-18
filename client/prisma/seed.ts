@@ -25,7 +25,6 @@ async function main() {
       .replace(/(^-|-$)+/g, "");
   }
 
-  // Map images to the right category (fallback to global if missing)
   const globalImages = [
     "/headphone.jpg",
     "/case.jpg",

@@ -14,11 +14,12 @@
   },
   "dependencies": {
     "@prisma/client": "^5.20.0",
+    "bcryptjs": "^3.0.2",
     "next": "15.5.3",
     "pg": "^8.16.3",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "zod": "^3.23.8",
+    "zod": "^3.25.76",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
