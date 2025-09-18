@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const r = useRouter();
+  const sp = useSearchParams();
+  const next = sp.get("next") || "/";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -24,7 +26,7 @@ export default function LoginPage() {
       setErr(j.error ?? "Login failed");
       return;
     }
-    r.push("/");
+    r.push(next);
   }
 
   return (

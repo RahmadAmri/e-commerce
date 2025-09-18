@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/store/cart";
 import Image from "next/image";
+import { useToast } from "@/components/Toast";
 
 type Category = { id: number; name: string; slug: string };
 type Product = {
@@ -33,6 +34,10 @@ export default function Home() {
   const [debouncedQ, setDebouncedQ] = useState("");
 
   const add = useCart((s) => s.addItem);
+  const cartCount = useCart((s) =>
+    s.items.reduce((sum: number, it) => sum + (it.quantity ?? 1), 0)
+  );
+  const { success } = useToast();
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedQ(q), 300);
@@ -63,100 +68,181 @@ export default function Home() {
     [data]
   );
 
+  // Reset to first page on filters change
+  useEffect(() => {
+    setPage(1);
+  }, [category, debouncedQ, sort]);
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
-        <div>
-          <label className="block text-sm">Search</label>
-          <input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            className="border px-2 py-1 rounded"
-            placeholder="Search products"
-          />
+      {/* Header / Hero */}
+      <div className="rounded-xl border bg-gradient-to-br from-neutral-900 via-neutral-900/80 to-neutral-800 p-5 md:p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-semibold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/70">
+              Discover products you’ll love
+            </h1>
+            <p className="text-sm text-white/60">
+              Search, filter by category, and sort to find the best deals.
+            </p>
+          </div>
+          <div className="text-sm px-3 py-1 rounded-full bg-white/10 border border-white/10">
+            Cart: <span className="font-semibold">{cartCount}</span> item
+            {cartCount === 1 ? "" : "s"}
+          </div>
         </div>
-        <div>
-          <label className="block text-sm">Category</label>
-          <select
-            value={category ?? ""}
-            onChange={(e) => setCategory(e.target.value || undefined)}
-            className="border px-2 py-1 rounded"
-          >
-            <option value="">All</option>
-            {data?.categories.map((c) => (
-              <option key={c.id} value={c.slug}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm">Sort</label>
-          <select
-            value={sort ?? ""}
-            onChange={(e) => setSort(e.target.value || undefined)}
-            className="border px-2 py-1 rounded"
-          >
-            <option value="">Newest</option>
-            <option value="price_asc">Price: Low to High</option>
-            <option value="price_desc">Price: High to Low</option>
-          </select>
-        </div>
-      </div>
 
-      {loading && <div>Loading…</div>}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {data?.items.map((p) => (
-          <div key={p.id} className="border rounded p-3 flex flex-col">
-            <div className="relative w-full h-32 mb-2">
-              <Image
-                src={p.imageUrl}
-                alt={p.name}
-                fill
-                sizes="(max-width: 768px) 100vw, 25vw"
-                style={{ objectFit: "contain" }}
+        {/* Filters */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-xs text-white/60 mb-1">Search</label>
+            <div className="flex items-center gap-2">
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                className="w-full border border-white/10 bg-white/5 placeholder:text-white/40 text-white rounded px-3 py-2 outline-none focus:ring-2 ring-white/20"
+                placeholder="Search products"
               />
             </div>
-            <div className="font-medium">{p.name}</div>
-            <div className="text-sm text-gray-500">{p.category.name}</div>
-            <div className="mt-auto flex items-center justify-between">
-              <div className="font-bold">${p.price.toFixed(2)}</div>
-              <button
-                className="text-sm border px-2 py-1 rounded hover:bg-gray-50"
-                onClick={() =>
-                  add({
-                    productId: p.id,
-                    name: p.name,
-                    price: p.price,
-                    imageUrl: p.imageUrl,
-                  })
-                }
-              >
-                Add to cart
-              </button>
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Categories chips */}
+              <div className="flex gap-2 overflow-x-auto py-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <button
+                  className={[
+                    "px-3 py-1.5 rounded-full text-sm border transition-colors",
+                    !category
+                      ? "bg-white text-black border-white"
+                      : "border-white/15 text-white hover:bg-white/10",
+                  ].join(" ")}
+                  onClick={() => setCategory(undefined)}
+                >
+                  All
+                </button>
+                {data?.categories.map((c) => {
+                  const active = category === c.slug;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setCategory(active ? undefined : c.slug)}
+                      className={[
+                        "px-3 py-1.5 rounded-full text-sm border transition-colors",
+                        active
+                          ? "bg-white text-black border-white"
+                          : "border-white/15 text-white hover:bg-white/10",
+                      ].join(" ")}
+                      aria-pressed={active}
+                    >
+                      {c.name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Sort */}
+              <div>
+                <label className="block text-xs text-white/60 mb-1">Sort</label>
+                <select
+                  value={sort ?? ""}
+                  onChange={(e) => setSort(e.target.value || undefined)}
+                  className="border border-white/10 bg-white/5 text-white rounded px-3 py-2 outline-none focus:ring-2 ring-white/20"
+                >
+                  <option value="">Newest</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                </select>
+              </div>
             </div>
           </div>
-        ))}
+        </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      {/* Grid */}
+      {loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {Array.from({ length: pageSize }).map((_, i) => (
+            <div key={i} className="rounded border border-white/10 p-3">
+              <div className="h-32 rounded skeleton mb-3" />
+              <div className="h-4 w-2/3 skeleton mb-2" />
+              <div className="h-3 w-1/3 skeleton mb-4" />
+              <div className="h-8 w-full skeleton rounded" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div
+          className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+          aria-live="polite"
+        >
+          {data?.items.map((p, i) => (
+            <div
+              key={p.id}
+              className="group border border-white/10 rounded-xl p-3 flex flex-col bg-white/[0.02] hover:bg-white/[0.04] transition-all duration-300 hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-[2px] animate-fade-in-up"
+              style={{ animationDelay: `${i * 40}ms` }}
+            >
+              <div className="relative w-full h-36 mb-3 rounded-md overflow-hidden bg-white/5">
+                <Image
+                  src={p.imageUrl}
+                  alt={p.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 25vw"
+                  className="object-contain transition-transform duration-300 group-hover:scale-[1.03]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="font-medium line-clamp-1">{p.name}</div>
+                <span className="text-xs px-2 py-0.5 rounded-full border border-white/15 text-white/80">
+                  {p.category.name}
+                </span>
+              </div>
+
+              <p className="text-xs text-white/50 line-clamp-2 mb-3">
+                {p.description}
+              </p>
+
+              <div className="mt-auto flex items-center justify-between">
+                <div className="font-bold">${p.price.toFixed(2)}</div>
+                <button
+                  className="text-sm border border-white/15 px-3 py-1.5 rounded-md bg-white/5 hover:bg-white/10 active:scale-[0.97] transition-all"
+                  onClick={() => {
+                    add({
+                      productId: p.id,
+                      name: p.name,
+                      price: p.price,
+                      imageUrl: p.imageUrl,
+                    });
+                    success(`Added “${p.name}” to cart`);
+                  }}
+                >
+                  Add to cart
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      <div className="flex items-center gap-2 justify-center">
         <button
-          className="border px-2 py-1 rounded"
+          className="border border-white/15 px-3 py-1.5 rounded bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition"
           disabled={page <= 1}
           onClick={() => setPage((p) => p - 1)}
         >
-          Prev
+          ← Prev
         </button>
-        <div>
+        <div className="text-sm px-3 py-1.5 rounded border border-white/10 bg-white/5">
           Page {page} / {totalPages}
         </div>
         <button
-          className="border px-2 py-1 rounded"
+          className="border border-white/15 px-3 py-1.5 rounded bg-white/5 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 transition"
           disabled={page >= totalPages}
           onClick={() => setPage((p) => p + 1)}
         >
-          Next
+          Next →
         </button>
       </div>
     </div>

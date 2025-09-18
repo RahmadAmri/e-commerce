@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import type { CheckoutPayload } from "@/types";
-import type { Prisma } from "@prisma/client";
+import { getUserBySessionToken } from "@/lib/auth";
 
 const OrderItemSchema = z.object({
   productId: z.number().int().positive(),
@@ -33,6 +33,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Require session
+  const token = req.cookies.get("session_token")?.value ?? "";
+  const user = await getUserBySessionToken(token);
+  if (!user) {
+    return NextResponse.json({ error: "Login required" }, { status: 401 });
+  }
+
   const data: CheckoutPayload = await req.json();
   const parsed = OrderSchema.safeParse(data);
   if (!parsed.success) {
@@ -65,44 +72,22 @@ export async function POST(req: NextRequest) {
     return { productId: p.id, quantity: i.quantity, unitPrice: p.price };
   });
 
-  const order = await prisma.$transaction(
-    async (tx: Prisma.TransactionClient) => {
-      const created = await tx.order.create({
-        data: {
-          email,
-          fullName,
-          address,
-          city,
-          country,
-          postalCode,
-          total,
-          items: { create: orderItems },
-        },
-        include: { items: { include: { product: true } } },
-      });
-
-      await Promise.all(
-        items.map((i: { productId: number; quantity: number }) =>
-          tx.product.update({
-            where: { id: i.productId },
-            data: { stock: { decrement: i.quantity } },
-          })
-        )
-      );
-
-      return created;
-    }
-  );
-
-  return NextResponse.json(
-    {
-      ...order,
-      total: Number(order.total),
-      items: order.items.map((it) => ({
-        ...it,
-        unitPrice: Number(it.unitPrice),
-      })),
+  const order = await prisma.order.create({
+    data: {
+      email,
+      fullName,
+      address,
+      city,
+      country,
+      postalCode,
+      total,
+      items: { create: orderItems },
+      userId: user.id, // link order to logged-in user
     },
-    { status: 201 }
-  );
+    include: {
+      items: { include: { product: true } },
+    },
+  });
+
+  return NextResponse.json(order, { status: 201 });
 }

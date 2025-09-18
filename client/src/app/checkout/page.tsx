@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { useCart } from "@/store/cart";
 
@@ -15,6 +16,7 @@ const CheckoutSchema = z.object({
 type FormState = z.infer<typeof CheckoutSchema>;
 
 export default function CheckoutPage() {
+  const router = useRouter();
   const { items, clear } = useCart((s) => s);
   const [form, setForm] = useState<FormState>({
     email: "",
@@ -27,6 +29,24 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const j = await res.json().catch(() => ({}));
+      if (!alive) return;
+      if (!j?.user) {
+        router.replace(`/login?next=${encodeURIComponent("/checkout")}`);
+        return;
+      }
+      setReady(true);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [router]);
 
   const total = items.reduce(
     (sum: number, i: { price: number; quantity: number }) =>
@@ -68,6 +88,8 @@ export default function CheckoutPage() {
     setSuccess(order.id);
     setLoading(false);
   }
+
+  if (!ready) return null;
 
   if (success) {
     return (
