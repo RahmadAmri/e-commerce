@@ -99,7 +99,6 @@ export default function NavbarClient({ user }: { user: User }) {
     </Link>
   );
 
-  // Optional: close any open user/menu popover when clicking outside
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
       if (!menuRef.current) return;

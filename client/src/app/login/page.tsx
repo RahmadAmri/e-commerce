@@ -1,30 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { z } from "zod";
-import { useToast } from "@/components/Toast";
 import { emitSessionChange } from "@/lib/session-events";
 
-const LoginSchema = z.object({
-  email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Min 6 characters"),
+const Schema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
 });
-
-type FormState = z.infer<typeof LoginSchema>;
+type Form = z.infer<typeof Schema>;
 
 export default function LoginPage() {
   const router = useRouter();
   const sp = useSearchParams();
   const next = sp.get("next") || "/";
-  const { success, error: toastError } = useToast();
 
-  const [form, setForm] = useState<FormState>({ email: "", password: "" });
-  const [showPwd, setShowPwd] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const emailRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState<Form>({ email: "", password: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -39,35 +34,44 @@ export default function LoginPage() {
     };
   }, [router, next]);
 
-  useEffect(() => {
-    emailRef.current?.focus();
-  }, []);
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    setErr(null);
-    const parsed = LoginSchema.safeParse(form);
+    setError(null);
+
+    const parsed = Schema.safeParse(form);
     if (!parsed.success) {
-      const first = parsed.error.errors[0]?.message ?? "Invalid form";
-      setErr(first);
+      setError("Enter a valid email and password");
       return;
     }
 
-    setLoading(true);
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-      cache: "no-store",
-    });
-    if (!res.ok) {
-      const j = await res.json().catch(() => ({}));
-      toastError(j?.error ?? "Login failed");
-      return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        cache: "no-store",
+        body: JSON.stringify(parsed.data),
+      });
+
+      if (!res.ok) {
+        let msg = "Wrong email or password";
+        try {
+          const j = await res.json();
+          if (j?.error) msg = String(j.error);
+        } catch {}
+        setError(msg);
+        setForm((f) => ({ ...f, password: "" }));
+        setSubmitting(false);
+        return;
+      }
+
+      emitSessionChange(true);
+      router.replace(next);
+    } catch {
+      setError("Unable to sign in. Check your connection.");
+      setSubmitting(false);
     }
-    success("Welcome back!");
-    emitSessionChange(true);
-    router.replace(next);
   }
 
   return (
@@ -91,7 +95,6 @@ export default function LoginPage() {
                 Email
               </label>
               <input
-                ref={emailRef}
                 id="email"
                 type="email"
                 value={form.email}
@@ -114,7 +117,7 @@ export default function LoginPage() {
               <div className="relative">
                 <input
                   id="password"
-                  type={showPwd ? "text" : "password"}
+                  type="password"
                   value={form.password}
                   onChange={(e) =>
                     setForm((s) => ({ ...s, password: e.target.value }))
@@ -123,47 +126,21 @@ export default function LoginPage() {
                   placeholder="••••••••"
                   autoComplete="current-password"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd((v) => !v)}
-                  className="absolute inset-y-0 right-0 px-3 text-white/70 hover:text-white/90"
-                  aria-label={showPwd ? "Hide password" : "Show password"}
-                >
-                  {showPwd ? "🙈" : "👁️"}
-                </button>
               </div>
             </div>
 
-            {err && <div className="text-sm text-red-400">{err}</div>}
+            {error ? (
+              <div className="text-sm text-red-400" role="alert">
+                {error}
+              </div>
+            ) : null}
 
             <button
               type="submit"
-              disabled={loading}
-              className="w-full rounded-md bg-white text-black py-2 font-medium hover:opacity-90 active:scale-[0.99] transition disabled:opacity-60"
+              disabled={submitting}
+              className="w-full rounded-md border border-white/10 bg-white text-black py-2 disabled:opacity-60"
             >
-              {loading ? (
-                <span className="inline-flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                    <circle
-                      className="opacity-30"
-                      cx="12"
-                      cy="12"
-                      r="10"
-                      stroke="currentColor"
-                      strokeWidth="4"
-                      fill="none"
-                    />
-                    <path
-                      className="opacity-90"
-                      fill="currentColor"
-                      d="M4 12a8 8 0 018-8v4A4 4 0 008 12H4z"
-                    />
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                "Login"
-              )}
+              {submitting ? "Signing in…" : "Login"}
             </button>
           </form>
 

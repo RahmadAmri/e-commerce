@@ -82,7 +82,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST: create an order (guest or logged-in)
 export async function POST(req: NextRequest) {
   const isDev = process.env.NODE_ENV !== "production";
   try {

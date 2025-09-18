@@ -10,7 +10,7 @@ import { emitSessionChange } from "@/lib/session-events";
 const RegisterSchema = z.object({
   name: z.string().min(1, "Enter your name").max(60),
   email: z.string().email("Enter a valid email"),
-  password: z.string().min(6, "Min 6 characters"),
+  password: z.string().min(6, "Please enter password min 6 letters"),
 });
 
 type FormState = z.infer<typeof RegisterSchema>;
@@ -31,7 +31,6 @@ export default function RegisterPage() {
   const [loading, setLoading] = useState(false);
   const nameRef = useRef<HTMLInputElement>(null);
 
-  // If already logged in, skip
   useEffect(() => {
     let alive = true;
     (async () => {
